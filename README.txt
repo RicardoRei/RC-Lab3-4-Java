@@ -17,9 +17,9 @@ Como correr o projecto:
 	"java Caixote_client <hostname> <port> <username> <directoria>"
 
 	Onde:
-	<hostname> terá que ser o endereço de IP da máquina onde foi executado o servidor;
-	<port> terá que ser a mesma port escolhida no servidor, no comando do servidor;
-	<username> é o username desejado para ser usado nesta sessão;
+	<hostname> terá que ser o endereço de IP da máquina onde foi executado o servidor.
+	<port> terá que ser a mesma port escolhida no servidor, no comando do servidor.
+	<username> é o username desejado para ser usado nesta sessão.
 	<directoria> é a directoria que se deseja sincronizar com o servidor.
 
 Especiais atenções:
