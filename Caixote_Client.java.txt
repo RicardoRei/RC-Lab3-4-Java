@@ -1,0 +1,132 @@
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.Socket;
+import java.net.UnknownHostException;
+
+class Caixote_Client{
+	
+	/******************************* Main  ******************************/
+	
+	public void main(String argv[]){
+		
+		System.out.println(Caixote_Client.class.getSimpleName() + " starting...");
+		
+		if (argv.length < 6){
+			System.out.println("Error: Too few arguments!");
+			System.out.printf("Usage: java %s <hostname> <port> <username> <directory>\n", Caixote_Client.class.getName());
+			return;
+		}
+		
+		/* Start by getting launch values*/
+		
+		String hostname = argv[2];
+		int port = Integer.parseInt(argv[3]);
+		String username = argv[4];
+		String directory = argv[5];
+	
+		System.out.printf("Creating Client Socket for host %s in port %d\n", hostname, port);
+		
+		/* Create Client side Socket to establish connection */
+		
+		Socket clientSocket = createClientSocket(hostname, port);
+		
+		if (clientSocket.equals(null))
+			return;
+		
+		System.out.println("Connection successfully established!");
+		
+		System.out.println("Creating Client Socket's input and output streams");
+		
+		/* Create output stream to server */
+		
+		DataOutputStream outToServer = createSocketOutputStream(clientSocket);
+		
+		if (outToServer.equals(null))
+			return;
+		
+		/* Create input stream to server */
+		
+		DataInputStream inToServer = createSocketInputStream(clientSocket);
+		
+		if (inToServer.equals(null))
+			return;
+		
+		System.out.println("Client Socket's input and output streams created!");
+	
+		// PROCESS INFO
+		
+			
+		System.out.println("Closing Client Socket");
+		
+		closeSocket(clientSocket);
+	}	
+	
+	/**************************** End of  Main  *************************/
+	
+	
+	
+	
+	/******************** Auxiliary Socket Functions *********************/
+	
+	/* Creates Socket given servers' "hostname" and "port" */
+	Socket createClientSocket(String hostname, int port){
+		Socket clientSocket = null;
+		try {
+			clientSocket = new Socket(hostname, port);
+		} catch (UnknownHostException e) {
+			System.out.println("Provided host IP address could not be determined");
+			e.printStackTrace();
+			
+		} catch (IOException e) {
+			System.out.println("I/O error ocurred when creating the socket");
+			e.printStackTrace();
+		
+		} catch (IllegalArgumentException e){
+			System.out.println("Port parameter is outside the specified range of valid port values,"
+					+ " which is between 0 and 65535, inclusive. The application's recomended port number is 40");
+		}
+		
+		return clientSocket;
+	}	
+	
+	/* Creates Data Output Stream from given "Socket" */
+	DataOutputStream createSocketOutputStream(Socket socket){
+		DataOutputStream outStream = null;
+		try {
+			outStream = new DataOutputStream(socket.getOutputStream());
+		} catch (IOException e) {
+			System.out.println("I/O error occured when creating the output stream or socket is not connected");
+			e.printStackTrace();
+		}
+		
+		return outStream;
+	}
+	
+	/* Creates Data Input Stream from given "Socket" */
+	DataInputStream createSocketInputStream(Socket socket){
+		DataInputStream inStream = null;
+		try {
+			inStream = new DataInputStream(socket.getInputStream());
+		} catch (IOException e) {
+			System.out.println("I/O error occured when creating the input stream or socket is not connected");
+			e.printStackTrace();
+		}
+		
+		return inStream;
+	}
+	
+	/* Closes given "Socket" */
+	void closeSocket(Socket socket){
+		try {
+			socket.close();
+		} catch (IOException e) {
+			System.out.println("I/O error occured when closing Client Socket");
+			e.printStackTrace();
+		}		
+	}
+	
+	/***************** End of Auxiliary Socket Functions *****************/
+	
+	
+}
