@@ -23,7 +23,26 @@ Como correr o projecto:
 	<directoria> é a directoria que se deseja sincronizar com o servidor.
 
 Especiais atenções:
-	- Os ficheiros têm nomes simples, nomeadamente, que não incluem o caractere ‘-’.
+	- Os ficheiros têm nomes simples, nomeadamente, que não incluem o caractere ‘-'.
 	- Os utilizadores não têm credenciais de acesso.
+	- Os utilizadores têm nomes simples, nomeadamente, que não incluem o caractere ‘-’.
 
 Informação sobre o protocolo usado:
+
+	Cliente:
+		Inicia Sessão (1):
+			- Envia um inteiro que representa o tamanho, em bytes, do username da sessão.
+			- Envia o username da sessão.
+			- Envia um inteiro que representa o tamanho, em bytes, do nome da directoria a sincronizar.
+			- Envia o nome da directoria a sincronizar
+
+		Sessão Inválida (3):
+			- Caso a sessão seja inválidada, o cliente recebe uma mensagem de erro que detalha o problema, e desliga a conexão com o server, termninando o processo.
+
+		Sessão Validada (3):
+			- 
+
+	Servidor:
+		Valida Sessão (2):
+			- Recebe os valores enviados no inicio de sessão do cliente e valida-os (verifica que a pasta desejada é do user a estabelecer sessão, e que não há outra sessão a sincronizar essa directoria)
+			- Retorna uma mensagem com um inteiro (0, 1 ou 2) que significa (pedido validado / pedido invalidado porque o username especificado não corresponde ao dono da pasta especificada / pedido invalidado porque essa pasta já está a ser sincronizada noutra sessão pelo mesmo utilizador), respectivamente.
