@@ -1,32 +1,44 @@
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Caixote_Server_Thread extends Thread {
 	
-	/************************* Protocol responses **********************/
+	/************************* Protocol variables **********************/
 	
-	/* Session establishment responses */
+	/* Protocol request variables */	
+	private final static int REQUESTSESSIONSTART = 0;
+	private final static int REQUESTENDOFSYNC = 1;
+	private final static int REQUESTDIRECTORYLOCK = 2;
+	private final static int REQUESTLISTFILESONDIRECTORY = 3;
+	private final static int REQUESTTIMEFILELASTMODIFICATION = 4;
+	private final static int REQUESTFILEEXISTS = 5;
+	private final static int REQUESTFILETRANSFER = 6;
 	
-	private final static int REQUESTVALIDATED = 0;
-	private final static int USERNOTOWNER = 1;
-	private final static int FILEALREADYINUSE = 2;
+	/* Protocol response variables */
+	private final static int REQUESTOK = 100;
+	private final static int FILEALREADYINUSE = 101;
+	private final static int FILEDOESNTEXIST = 102;
+	private final static int FILECOULDNOTBECREATED = 103;
+	private final static int FILETRANSFERFAILED = 104;
 	
-	/* Synchronisation requests */
-	private final static int REQUESTENDOFSYNC = 3;
-	private final static int REQUESTTIMEOFFILE = 4;
-	private final static int REQUESTSINGLEFILETRANSFER = 5;
-	
-	/******************** End of Protocol responses ********************/
+	/******************** End of Protocol variables ********************/
 	
 	/************************* Thread attributes ***********************/
 	
 	private Socket connectionSocket;
 	private long thread_id = Thread.currentThread().getId();
+	private List<String> thread_occupied_directories_list = new ArrayList<String>();
 	private String username;
 	private String directory;
 
@@ -47,7 +59,7 @@ public class Caixote_Server_Thread extends Thread {
 	public void run(){
 		
 		/* Welcome user */
-		System.out.printf("Thread #%s: Thread is now running\n", String.valueOf(thread_id));
+		System.out.printf("Thread #%s: Thread is now running!%n", String.valueOf(thread_id));
 		
 		/* Create output stream to server */
 				
@@ -55,9 +67,11 @@ public class Caixote_Server_Thread extends Thread {
 		try {
 			outToClient = new DataOutputStream(connectionSocket.getOutputStream());
 		} catch (IOException e) {
-			System.out.printf("Thread #%s: I/O error occured when creating the output stream or socket is not connected\n", String.valueOf(thread_id));
+			System.out.printf("Thread #%s: I/O error occured when creating the output stream!%n", String.valueOf(thread_id));
 			e.printStackTrace();
+			System.out.printf("Thread #%s: Terminating thread...%n", String.valueOf(thread_id));
 			closeSocket(connectionSocket);
+			System.out.printf("Thread #%s: Ending %s. Bye!%n", String.valueOf(thread_id), Caixote_Server.class.getSimpleName());
 			return;
 		}
 		
@@ -67,119 +81,153 @@ public class Caixote_Server_Thread extends Thread {
 		try {
 			inFromClient = new DataInputStream(connectionSocket.getInputStream());
 		} catch (IOException e) {
-			System.out.printf("Thread #%s: I/O error occured when creating the input stream or socket is not connected\n", String.valueOf(thread_id));
+			System.out.printf("Thread #%s: I/O error occured when creating the input stream!%n", String.valueOf(thread_id));
 			e.printStackTrace();
+			System.out.printf("Thread #%s: Terminating thread...%n", String.valueOf(thread_id));
 			closeSocket(connectionSocket);
+			System.out.printf("Thread #%s: Ending %s. Bye!%n", String.valueOf(thread_id), Caixote_Server.class.getSimpleName());
 			return;
 		}		
 		
-		/* First, receive an integer with the number of bytes sent containing username, then the username */
+		/* Start receiving requests */
 		
-		try {
-			int length = inFromClient.readInt();
-			byte[] message = new byte[length];
-			inFromClient.readFully(message, 0, message.length);
-			username = new String(message, 0 , message.length);
-		} catch (IOException e) {
-			System.out.printf("Thread #%s: I/O Error when reading from session socket", String.valueOf(thread_id));
-			e.printStackTrace();
-			closeSocket(connectionSocket);
-			return;
-		}
+		byte[] message;
+		int response;
+		String tempMessage;
 		
-		/* Second, receive an integer with the number of bytes sent containing directory name, then the directory name */
-		
-		try {
-			int length = inFromClient.readInt();
-			byte[] message = new byte[length];
-			inFromClient.readFully(message, 0, message.length);
-			directory = new String(message, 0 , message.length);
-		} catch (IOException e) {
-			System.out.printf("Thread #%s: I/O Error when reading from session socket", String.valueOf(thread_id));
-			e.printStackTrace();
-			closeSocket(connectionSocket);
-			return;
-		}
-		
-		/* Third, confirm that the session is valid */
-		
-		int decision = REQUESTVALIDATED;
-		
-		if (userIsOwner(directory, username) == false)
-			decision = USERNOTOWNER;
-		
-		else if (directoryIsRunning(directory)){
-			decision = FILEALREADYINUSE;
-		}
-		
-		/* Send validation to client */
-		
-		try {
-			outToClient.writeInt(decision);
-		} catch (IOException e) {
-			System.out.printf("Thread #%s: I/O error ocurred when sending session validation to client", String.valueOf(thread_id));
-			e.printStackTrace();
-			closeSocket(connectionSocket);
-			return;
-		}
-		
-		/* if clearance was given, start synchronising */
-		
-		if (decision == REQUESTVALIDATED){
-		
-			/* Start synchronising files on client that are out-dated on client and files on server that are only on client or out-dated on server */
-			
-			int response;
-			
-			while (true){			
+		while (true){
+			try{
+				/******** Start of try block *****/
 				
-				try {
-					response = inFromClient.readInt();
-				} catch (IOException e) {
-					System.out.printf("Thread #%s: I/O error ocurred when receiving request from client", String.valueOf(thread_id));
-					e.printStackTrace();
-					closeSocket(connectionSocket);
-					return;
-				}
+				int request = inFromClient.readInt();
 				
-				
-				if (response == REQUESTENDOFSYNC)
-					break;
-				
-				else if (){
+				if (request == REQUESTSESSIONSTART){
+					/* First, receive an integer with the number of bytes sent containing username, then the username */
+					message = readFromSocket(inFromClient);
+					username = new String(message, 0 , message.length);
 					
+					/* Second, receive an integer with the number of bytes sent containing directory name, then the directory name */
+					message = readFromSocket(inFromClient);
+					directory = new String(message, 0 , message.length);
+					String requestedUserDirectory = Paths.get(username, directory).normalize().toString();
+					
+					/* Third, confirm that the session is valid */
+					response = REQUESTOK;
+					
+					if (lockDirectory(requestedUserDirectory) == false){
+						response = FILEALREADYINUSE;
+					}
+					
+					/* Send validation to client */					
+					outToClient.writeInt(response);
+					
+					if (response != REQUESTOK){
+						/* Session is invalid, end communications */				
+						System.out.printf("Thread #%s: client request in not valid! Ending communications...%n", String.valueOf(thread_id));
+						break;
+					}
+					
+					/* Verify if User's home directory is on server file system */
+					boolean exists = Files.exists(Paths.get(username, directory).normalize(), LinkOption.NOFOLLOW_LINKS);
+					
+					/* if directory exists continue, else make that directory */
+					if (exists)
+						continue;
+					
+					new File(requestedUserDirectory).mkdir();
 				}
-			}
-			
-			/* Synchronise files on client that are only on server */
-			SyncFilesServer fileVisitor = new SyncFilesServer(outToServer, inFromServer);
-			
-			Path directoryPath = Paths.get(directory);
-			
-			try {
-				Files.walkFileTree(directoryPath, fileVisitor);
-			} catch (IOException e) {
-				System.out.printf("Thread #%s: I/O error thrown by file visitor", String.valueOf(thread_id));
+				
+				else if (request == REQUESTDIRECTORYLOCK){
+					/* Client requests access to directory. Read it and try to lock it */
+					message = readFromSocket(inFromClient);
+					tempMessage = new String(message, 0 , message.length);
+					
+					if (lockDirectory(Paths.get(username, tempMessage).normalize().toString()) == true){
+						outToClient.writeInt(REQUESTOK);
+					}					
+					else
+						outToClient.writeInt(FILEALREADYINUSE);
+				}
+				
+				else if (request == REQUESTFILEEXISTS){
+					message = readFromSocket(inFromClient);
+					tempMessage = new String(message, 0 , message.length);
+					
+					/* Verify if file is on server file system */
+					Path dir = Paths.get(username, tempMessage).normalize();
+					boolean exists = Files.exists(dir, LinkOption.NOFOLLOW_LINKS);
+					
+					if (exists == true)
+						outToClient.writeInt(REQUESTOK);
+					
+					else
+						outToClient.writeInt(FILEDOESNTEXIST);					
+				}
+				
+				else if (request == REQUESTFILETRANSFER){
+					/* Receive the name of the file */
+					message = readFromSocket(inFromClient);
+					tempMessage = new String(message, 0 , message.length);
+					String filename = Paths.get(username, tempMessage).normalize().toString();
+					
+					/* Because file didn't exist, create it */
+					File file = new File(filename);
+					if (file.createNewFile() == false)
+						outToClient.writeInt(FILECOULDNOTBECREATED);
+					
+					outToClient.writeInt(REQUESTOK);
+					
+					/* Now receive file and update it's contents */
+					OutputStream fileStream;
+					try {
+						message = readFromSocket(inFromClient);
+						fileStream = new FileOutputStream(filename); 
+						fileStream.write(message);
+						fileStream.close();
+					} catch (IOException e1){
+						outToClient.writeInt(FILETRANSFERFAILED);
+					}
+					
+					outToClient.writeInt(REQUESTOK);
+				}
+				
+				else if (request == REQUESTTIMEFILELASTMODIFICATION){
+					message = readFromSocket(inFromClient);
+					tempMessage = new String(message, 0 , message.length);
+					
+					File file = new File(Paths.get(username, tempMessage).normalize().toString());
+					
+					long lastModified = file.lastModified();
+					
+					outToClient.writeLong(lastModified);
+				}				
+				
+				
+				else if (request == REQUESTENDOFSYNC){
+					System.out.printf("Thread #%s: client requested end of synchronisation!%n", String.valueOf(thread_id));
+					break;
+				}
+				
+				else{
+					System.out.printf("Thread #%s: client request in not on protocol list! Ending communications...%n", String.valueOf(thread_id));
+					break;
+				}
+				
+			} catch(IOException e) {
+				System.out.printf("Thread #%s: I/O Error when communicating trough session socket!%n", String.valueOf(thread_id));
 				e.printStackTrace();
-			}
-			
-			/* End of sync, request server to sync back */
-		
-			try {
-				outToClient.writeInt(REQUESTENDOFSYNC);
-			} catch (IOException e) {
-				System.out.println("I/O error ocurred when sending end of sync information to server");
-				e.printStackTrace();
+				System.out.printf("Thread #%s: Terminating thread...%n", String.valueOf(thread_id));
 				closeSocket(connectionSocket);
-				return;
+				System.out.printf("Thread #%s: Ending %s. Bye!%n", String.valueOf(thread_id), Caixote_Server.class.getSimpleName());
+				return;	
 			}
 		}
 		
-		/* End of sync, close socket */
-				
-		closeSocket(connectionSocket);
+		System.out.printf("Thread #%s: closing socket...%n", String.valueOf(thread_id));
 		
-		System.out.printf("Thread #%s: client request completed successfully. Thread terminating\n", String.valueOf(thread_id));
+		/* End of sync, close socket */				
+		closeSocket(connectionSocket);
+		System.out.printf("Thread #%s: client synchronisation completed successfully. Terminating %s. Bye!%n", String.valueOf(thread_id), Caixote_Server.class.getSimpleName());
 	}
 	
 	/*********************** End of Thread "Main"  *********************/
@@ -187,28 +235,53 @@ public class Caixote_Server_Thread extends Thread {
 	/******************** Auxiliary thread functions  ******************/
 	
 	/* Closes given socket, printing errors on failure */
-	static void closeSocket(Socket socket){
+	private void closeSocket(Socket socket){
 		try {
 			socket.close();
+			for (String s : thread_occupied_directories_list){
+				unlockDirectory(s);
+			}
 		} catch (IOException e) {
-			System.out.println("I/O Error occurred when closing session socket");
+			System.out.println("I/O Error occurred when closing session socket!");
 			e.printStackTrace();
 		}
 	}
 	
-	/* This method is synchronized so that only one thread can access it at a time */
-	private synchronized boolean directoryIsRunning(String directory) {
-		return Caixote_Server.occupied_directories_list.contains(directory);
+	/* Reads info from socket */
+	private byte[] readFromSocket(DataInputStream inFromClient) throws IOException {
+		int length = inFromClient.readInt();
+		byte[] message = new byte[length];
+		inFromClient.readFully(message, 0, length);
+		return message;
 	}
 	
-	/* This method is synchronized so that only one thread can access it at a time */
-	private synchronized void addRunningDirectory(String directory) {
+	/* Sends info through socket */
+	private void sendToSocket(DataOutputStream outToClient, byte[] message) throws IOException {
+		outToClient.writeInt(message.length);
+		outToClient.write(message);
+	}
+	
+	/* This method is synchronised so that only one thread can access it at a time */
+	/* Lock directory so no one accesses it at the same time */
+	private synchronized boolean lockDirectory(String directory) {
+		if (thread_occupied_directories_list.contains(directory))
+			return true;
+		
+		for (String s : Caixote_Server.occupied_directories_list){
+			if (directory.startsWith(s)){
+				if (thread_occupied_directories_list.contains(s) == false)
+					return false;
+			}
+		}
+
+		thread_occupied_directories_list.add(directory);
 		Caixote_Server.occupied_directories_list.add(directory);
+		return true;		
 	}
 	
-	/* This method verifies if the user is the owner of the given directory */
-	private boolean userIsOwner(String directory, String username) {
-		return directory.startsWith(username + "-");
+	/* Unlock directory for other clients */
+	private void unlockDirectory(String directory) {
+		Caixote_Server.occupied_directories_list.remove(directory);
 	}
 
 	

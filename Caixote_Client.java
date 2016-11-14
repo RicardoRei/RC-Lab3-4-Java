@@ -9,20 +9,22 @@ import java.nio.file.Paths;
 
 class Caixote_Client{
 	
-	/************************* Protocol responses **********************/
+	/************************* Protocol variables **********************/
 	
-	/* Session establishment responses */
+	/* Protocol request variables */	
+	private final static int REQUESTSESSIONSTART = 0;
+	private final static int REQUESTENDOFSYNC = 1;
+	private final static int REQUESTDIRECTORYLOCK = 2;
+	private final static int REQUESTLISTFILESONDIRECTORY = 3;
+	private final static int REQUESTTIMEFILELASTMODIFICATION = 4;
+	private final static int REQUESTTIMEFILEEXISTS = 5;
 	
-	private final static int REQUESTVALIDATED = 0;
-	private final static int USERNOTOWNER = 1;
-	private final static int FILEALREADYINUSE = 2;
+	/* Protocol response variables */
+	private final static int REQUESTOK = 100;
+	private final static int FILEALREADYINUSE = 101;
+	private final static int FILEDOESNTEXIST = 102;
 	
-	/* Synchronisation requests */
-	private final static int REQUESTENDOFSYNC = 3;
-	private final static int REQUESTTIMEOFFILE = 4;
-	private final static int REQUESTSINGLEFILETRANSFER = 5;
-	
-	/******************** End of Protocol responses ********************/
+	/******************** End of Protocol variables ********************/
 	
 	/******************************* Main ******************************/
 	
@@ -33,7 +35,7 @@ class Caixote_Client{
 		
 		if (argv.length < 4){
 			System.out.println("Error: Too few arguments!");
-			System.out.printf("Usage: java %s <hostname> <port> <username> <directory>\n", Caixote_Client.class.getName());
+			System.out.printf("Usage: java %s <hostname> <port> <username> <directory>%n", Caixote_Client.class.getName());
 			return;
 		}
 		
@@ -42,14 +44,9 @@ class Caixote_Client{
 		String hostname = argv[0];
 		int port = Integer.parseInt(argv[1]);
 		String username = argv[2];
-		String directory = argv[3];
+		String directory = Paths.get(argv[3]).normalize().toString();
 				
-		if (directory.contains("-")){
-			System.out.printf("Invalid directory <%s>! Choose a directory that doesn't include the char '-'!\n", directory);
-			return;
-		}
-	
-		System.out.printf("Creating Client Socket for host %s in port %d\n", hostname, port);
+		System.out.printf("Creating Client Socket for host %s in port %d...%n", hostname, port);
 		
 		/* Create Client side Socket to establish connection */		
 		
@@ -58,22 +55,22 @@ class Caixote_Client{
 		try {
 			clientSocket = new Socket(hostname, port);
 		} catch (UnknownHostException e) {
-			System.out.println("Provided host IP address could not be determined");
+			System.out.println("Provided host IP address could not be determined!");
 			e.printStackTrace();
 			return;
 		} catch (IOException e) {
-			System.out.println("I/O error ocurred when creating the socket");
+			System.out.println("I/O error ocurred when creating the socket!");
 			e.printStackTrace();
 			return;
 		} catch (IllegalArgumentException e){
 			System.out.println("Port parameter is outside the specified range of valid port values,"
-					+ " which is between 0 and 65535, inclusive. The application's recomended port number is 40");
+					+ " which is between 0 and 65535, inclusive. The application's recomended port number is 40.");
 			return;
 		}
 		
 		System.out.println("Connection successfully established!");
 		
-		System.out.println("Creating Client Socket's input and output streams");
+		System.out.println("Creating Client Socket's input and output streams...");
 		
 		/* Create output stream to server */
 		
@@ -82,9 +79,11 @@ class Caixote_Client{
 		try {
 			outToServer = new DataOutputStream(clientSocket.getOutputStream());
 		} catch (Exception e) {
-			System.out.println("I/O error occured when creating the output stream or socket is not connected");
+			System.out.println("I/O error occured when creating the output stream or socket is not connected!");
 			e.printStackTrace();
+			System.out.println("Closing socket and ending communications...");
 			closeSocket(clientSocket);
+			System.out.println("Ending " + Caixote_Client.class.getSimpleName() + ". Bye!");
 			return;
 		}
 		
@@ -94,133 +93,87 @@ class Caixote_Client{
 		
 		try {
 			inFromServer = new DataInputStream(clientSocket.getInputStream());
-		} catch (Exception e) {
-			System.out.println("I/O error occured when creating the input stream or socket is not connected");
+		} catch (Exception e) {			
+			System.out.println("I/O error occured when creating the input stream or socket is not connected!");
 			e.printStackTrace();
+			System.out.println("Closing socket and ending communications...");
 			closeSocket(clientSocket);
+			System.out.println("Ending " + Caixote_Client.class.getSimpleName() + ". Bye!");
 			return;
 		}
 		
 		System.out.println("Client Socket's input and output streams created!");
 		
-		System.out.println("Asking server for clearance to access <directory: " + directory + "> as <username: " + username + ">");
+		System.out.println("Asking server for clearance to access <directory: " + directory + "> as <username: " + username + ">...");
 		
-		/* First, send an integer with the number of bytes to be sent containing username, then the username */
+		try{
+			
+			/* Request session start */		
+			outToServer.writeInt(REQUESTSESSIONSTART);
+			
+			/* First, send an integer with the number of bytes to be sent containing username, then the username */
+			byte[] message = username.getBytes();
+			outToServer.writeInt(message.length);
+			outToServer.write(message);
 				
-		try {
-			outToServer.writeInt(username.getBytes().length);
-			outToServer.write(username.getBytes());
-		} catch (IOException e) {
-			System.out.println("I/O error ocurred when sending username information to server");
-			e.printStackTrace();
-			closeSocket(clientSocket);
-			return;
-		}		
-		
-		/* Second, send an integer with the number of bytes to be sent containing directory name, then the directory name */
-		
-		try {
-			outToServer.writeInt(directory.getBytes().length);
-			outToServer.write(directory.getBytes());
-		} catch (IOException e) {
-			System.out.println("I/O error ocurred when sending directory information to server");
-			e.printStackTrace();
-			closeSocket(clientSocket);
-			return;
-		}		
-		
-		/* The response will say if the client has clearance, and if not, why (same user already synchronising that file / user has no permissions) */
-		
-		boolean hasClearance = false;
-		int response;
-		
-		try {
-			response = inFromServer.readInt();
-		} catch (IOException e) {
-			System.out.println("I/O error ocurred when receiving clearance response from server");
-			e.printStackTrace();
-			closeSocket(clientSocket);
-			return;
-		}
-		
-		if (response == REQUESTVALIDATED)
-			hasClearance = true;
-		
-		else if (response == USERNOTOWNER)
-			System.out.println("Server access negated: Username <" + username + "> does not own directory <" + directory + ">");
-		
-		else if (response == FILEALREADYINUSE)
-			System.out.println("Server access negated: Directory <" + directory + "> is already in use");
-		
-		/* if clearance was given, start synchronising */
-		
-		if (hasClearance){		
+			/* Second, send an integer with the number of bytes to be sent containing directory name, then the directory name */
+			message = directory.getBytes();
+			outToServer.writeInt(message.length);
+			outToServer.write(message);
 			
-			/* Synchronise files on server that aren't on server or are outdated on server and files on client that are outdated on client */
-			SyncFilesClient fileVisitor = new SyncFilesClient(outToServer, inFromServer);
+			/* The response will say if the client has clearance, and if not, why (same user already synchronising that file / user has no permissions) */
+			int response = inFromServer.readInt();
 			
-			Path directoryPath = Paths.get(directory);
-			
-			try {
-				Files.walkFileTree(directoryPath, fileVisitor);
-			} catch (IOException e) {
-				System.out.println("I/O Error thrown by file visitor");
-				e.printStackTrace();
-			}
-			
-			/* End of sync, request server to sync back */
-		
-			try {
-				outToServer.writeInt(REQUESTENDOFSYNC);
-			} catch (IOException e) {
-				System.out.println("I/O error ocurred when sending end of sync information to server");
-				e.printStackTrace();
-				closeSocket(clientSocket);
+			if (response == FILEALREADYINUSE){
+				System.out.println("Server access negated: Directory <" + directory + "> is already in use!");
+				
+				/* Session is invalid, end communications */				
+				System.out.println("Closing socket and ending communications...");				
+				closeSocket(clientSocket);				
+				System.out.println("Ending " + Caixote_Client.class.getSimpleName() + ". Bye!");
 				return;
-			}
+			}			
 			
-			/* Synchronise files on client that exist only on server */
+			/* if clearance was given, start synchronising */
+			System.out.println("Clearance was given! Starting synchronisation...");
+		
+			/* Synchronise files between server and client */
+			Path startingDir = Paths.get(System.getProperty("user.dir"), directory).normalize();
+			SyncFiles fileVisitor = new SyncFiles(outToServer, inFromServer, username, startingDir);
+			Path directoryPath = Paths.get(directory);
+			Files.walkFileTree(directoryPath, fileVisitor);
 			
-			while (true){
-				
-				
-				try {
-					response = inFromServer.readInt();
-				} catch (IOException e) {
-					System.out.println("I/O error ocurred when receiving clearance response from server");
-					e.printStackTrace();
-					closeSocket(clientSocket);
-					return;
-				}
-				
-				
-				if (response == REQUESTENDOFSYNC)
-					break;
-				
-				else if (){
-					
-				}
-			}
-		}
+			/* Synchronisation is complete */
+			System.out.println("Synchronisation complete! Ending communcations with server...");
+			outToServer.writeInt(REQUESTENDOFSYNC);
+			
+		} catch (IOException e) {
+			System.out.println("I/O Error when communicating trough session socket!");
+			e.printStackTrace();
+			System.out.println("Closing socket and ending communications...");
+			closeSocket(clientSocket);
+			System.out.println("Ending " + Caixote_Client.class.getSimpleName() + ". Bye!");
+			return;
+		}		
 		
 		/* End of sync, close socket */
 		
-		System.out.println("Closing client socket");
+		System.out.println("Closing socket and ending communications...");
 		
 		closeSocket(clientSocket);
 		
-		System.out.println("Ending " + Caixote_Client.class.getSimpleName());
+		System.out.println("Ending " + Caixote_Client.class.getSimpleName() + ". Bye!");
 	}	
 	
 	/**************************** End of  Main  *************************/
 	
 	/******************** Auxiliary client functions  ******************/
 	
-	static void closeSocket(Socket socket){
+	private static void closeSocket(Socket socket){
 		try {
 			socket.close();
 		} catch (IOException e) {
-			System.out.println("I/O Error occurred when closing client socket");
+			System.out.println("I/O Error occurred when closing client socket!");
 			e.printStackTrace();
 		}
 		return;
