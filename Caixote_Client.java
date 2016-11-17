@@ -15,14 +15,23 @@ class Caixote_Client{
 	private final static int REQUESTSESSIONSTART = 0;
 	private final static int REQUESTENDOFSYNC = 1;
 	private final static int REQUESTDIRECTORYLOCK = 2;
-	private final static int REQUESTLISTFILESONDIRECTORY = 3;
+	private final static int REQUESTLISTDIR = 3;
 	private final static int REQUESTTIMEFILELASTMODIFICATION = 4;
-	private final static int REQUESTTIMEFILEEXISTS = 5;
+	private final static int REQUESTFILEEXISTS = 5;
+	private final static int REQUESTFILETRANSFER = 6;
+	private final static int REQUESTMAKEDIR = 7;
+	private final static int REQUESTFILEUPDATE = 8;
 	
 	/* Protocol response variables */
 	private final static int REQUESTOK = 100;
 	private final static int FILEALREADYINUSE = 101;
 	private final static int FILEDOESNTEXIST = 102;
+	private final static int FILECOULDNOTBECREATED = 103;
+	private final static int FILETRANSFERFAILED = 104;
+	
+	/* Protocol control variables */
+	private final static int ISDIRECTORY = 200;
+	private final static int ISFILE = 201;
 	
 	/******************** End of Protocol variables ********************/
 	
@@ -113,13 +122,11 @@ class Caixote_Client{
 			
 			/* First, send an integer with the number of bytes to be sent containing username, then the username */
 			byte[] message = username.getBytes();
-			outToServer.writeInt(message.length);
-			outToServer.write(message);
+			sendToSocket(outToServer, message);
 				
 			/* Second, send an integer with the number of bytes to be sent containing directory name, then the directory name */
 			message = directory.getBytes();
-			outToServer.writeInt(message.length);
-			outToServer.write(message);
+			sendToSocket(outToServer, message);
 			
 			/* The response will say if the client has clearance, and if not, why (same user already synchronising that file / user has no permissions) */
 			int response = inFromServer.readInt();
@@ -128,8 +135,8 @@ class Caixote_Client{
 				System.out.println("Server access negated: Directory <" + directory + "> is already in use!");
 				
 				/* Session is invalid, end communications */				
-				System.out.println("Closing socket and ending communications...");				
-				closeSocket(clientSocket);				
+				System.out.println("Closing socket and ending communications...");
+				closeSocket(clientSocket);
 				System.out.println("Ending " + Caixote_Client.class.getSimpleName() + ". Bye!");
 				return;
 			}			
@@ -139,7 +146,7 @@ class Caixote_Client{
 		
 			/* Synchronise files between server and client */
 			Path startingDir = Paths.get(System.getProperty("user.dir"), directory).normalize();
-			SyncFiles fileVisitor = new SyncFiles(outToServer, inFromServer, username, startingDir);
+			SyncFiles fileVisitor = new SyncFiles(outToServer, inFromServer, startingDir);
 			Path directoryPath = Paths.get(directory);
 			Files.walkFileTree(directoryPath, fileVisitor);
 			
@@ -177,6 +184,12 @@ class Caixote_Client{
 			e.printStackTrace();
 		}
 		return;
+	}
+	
+	/* Sends info through socket */
+	private static void sendToSocket(DataOutputStream outToServer, byte[] message) throws IOException {
+		outToServer.writeInt(message.length);
+		outToServer.write(message);
 	}
 	
 	/**************** End of auxiliary client functions  ***************/
