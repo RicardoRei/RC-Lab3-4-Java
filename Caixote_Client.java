@@ -55,7 +55,7 @@ class Caixote_Client{
 		String username = argv[2];
 		String directory = Paths.get(argv[3]).normalize().toString();
 				
-		System.out.printf("Creating Client Socket for host %s in port %d...%n", hostname, port);
+		System.out.printf("Creating client socket for host %s in port %d...%n", hostname, port);
 		
 		/* Create Client side Socket to establish connection */		
 		
@@ -79,7 +79,7 @@ class Caixote_Client{
 		
 		System.out.println("Connection successfully established!");
 		
-		System.out.println("Creating Client Socket's input and output streams...");
+		System.out.println("Creating client socket's input and output streams...");
 		
 		/* Create output stream to server */
 		
@@ -111,7 +111,7 @@ class Caixote_Client{
 			return;
 		}
 		
-		System.out.println("Client Socket's input and output streams created!");
+		System.out.println("Client socket's input and output streams created!");
 		
 		System.out.println("Asking server for clearance to access <directory: " + directory + "> as <username: " + username + ">...");
 		
@@ -120,7 +120,7 @@ class Caixote_Client{
 			/* Request session start */		
 			outToServer.writeInt(REQUESTSESSIONSTART);
 			
-			/* First, send an integer with the number of bytes to be sent containing username, then the username */
+			/* First, send an integer with the number of bytes to be sent containing user name, then the user name */
 			byte[] message = username.getBytes();
 			sendToSocket(outToServer, message);
 				
@@ -128,9 +128,9 @@ class Caixote_Client{
 			message = directory.getBytes();
 			sendToSocket(outToServer, message);
 			
-			/* The response will say if the client has clearance, and if not, why (same user already synchronising that file / user has no permissions) */
+			/* The response will say if the client has clearance, and if not, why (same user already synchronizing that file / user has no permissions) */
 			int response = inFromServer.readInt();
-			
+						
 			if (response == FILEALREADYINUSE){
 				System.out.println("Server access negated: Directory <" + directory + "> is already in use!");
 				
@@ -141,16 +141,16 @@ class Caixote_Client{
 				return;
 			}			
 			
-			/* if clearance was given, start synchronising */
+			/* if clearance was given, start synchronizing */
 			System.out.println("Clearance was given! Starting synchronisation...");
 		
-			/* Synchronise files between server and client */
+			/* Synchronize files between server and client */
 			Path startingDir = Paths.get(System.getProperty("user.dir"), directory).normalize();
 			SyncFiles fileVisitor = new SyncFiles(outToServer, inFromServer, startingDir);
 			Path directoryPath = Paths.get(directory);
 			Files.walkFileTree(directoryPath, fileVisitor);
 			
-			/* Synchronisation is complete */
+			/* Synchronization is complete */
 			System.out.println("Synchronisation complete! Ending communcations with server...");
 			outToServer.writeInt(REQUESTENDOFSYNC);
 			

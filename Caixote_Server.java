@@ -11,10 +11,7 @@ public class Caixote_Server {
 	/* List of occupied directories */
 	public static List<String> occupied_directories_list = new ArrayList<String>();
 	
-	/******************************* Main  ******************************/
-	
 	public static void main(String argv[]){
-		
 		/* List of currently running threads */
 		List<Caixote_Server_Thread> thread_list = new ArrayList<Caixote_Server_Thread>();
 		
@@ -32,7 +29,7 @@ public class Caixote_Server {
 	
 		System.out.printf("Creating Server Welcome Socket in port %d...%n", port);
 		
-		/* Create Server Welcome Socket to wait for clients' requests */
+		/* Create server's welcome socket to wait for clients' requests */
 		ServerSocket welcomeSocket = null;
 		
 		try {
@@ -48,13 +45,12 @@ public class Caixote_Server {
 			return;
 		}
 		
-		System.out.println("Server Welcome Socket successfully created!");
+		System.out.println("Server's welcome socket successfully created!");
 		
-		/* Setting Server wait timeout for connections to be serverWaitTimeout seconds */
+		/* Setting server wait timeout for connections to be serverWaitTimeout seconds */
+		int serverWaitTimeout = 600;
 		
-		int serverWaitTimeout = 300;
-		
-		System.out.printf("Setting Server Welcome Socket timeout for connections to %d seconds...%n", serverWaitTimeout);
+		System.out.printf("Setting server's welcome socket timeout for connections to %d seconds...%n", serverWaitTimeout);
 		
 		try {
 			welcomeSocket.setSoTimeout(serverWaitTimeout * 1000);
@@ -63,7 +59,7 @@ public class Caixote_Server {
 			e.printStackTrace();
 		}
 				
-		System.out.println("Server Welcome Socket is now live!");
+		System.out.println("Server's welcome socket is now live!");
 
 		/* Server loop to establish connections to be carried out by this server's threads.
 		 * Server will wait connections till the timeout is exceeded, then the server will shut down */
@@ -86,13 +82,13 @@ public class Caixote_Server {
 			
 			System.out.println("New client connected! Starting separate thread for this client...");
 			
-			/* Make a new Thread to carry out the client's requests */
+			/* Make a new thread to carry out the client's requests */
 			Caixote_Server_Thread thread = new Caixote_Server_Thread(connectionSocket);
 			
 			/* Add it to this server's list of threads */
 			thread_list.add(thread);
 			
-			/* Start the new Thread */
+			/* Start the new thread */
 			thread.start();
 		}
 		
@@ -114,6 +110,8 @@ public class Caixote_Server {
 		}
 		
 		System.out.println("Closing server welcome socket.");
+		
+		/* Close socket and end execution */
 		
 		try {
 			welcomeSocket.close();

@@ -64,12 +64,10 @@ public class Caixote_Server_Thread extends Thread {
 	
 	/* Method used to get the thread running */
 	public void run(){
-		
 		/* Welcome user */
-		System.out.printf("Thread #%s: Thread is now running!%n", String.valueOf(thread_id));
+		System.out.printf("Thread #%s: thread is now running!%n", String.valueOf(thread_id));
 		
-		/* Create output stream to server */
-				
+		/* Create output stream to server */				
 		DataOutputStream outToClient = null;
 		try {
 			outToClient = new DataOutputStream(connectionSocket.getOutputStream());
@@ -82,8 +80,7 @@ public class Caixote_Server_Thread extends Thread {
 			return;
 		}
 		
-		/* Create input stream to server */
-		
+		/* Create input stream to server */		
 		DataInputStream inFromClient = null;
 		try {
 			inFromClient = new DataInputStream(connectionSocket.getInputStream());
@@ -96,30 +93,25 @@ public class Caixote_Server_Thread extends Thread {
 			return;
 		}		
 		
-		/* Start receiving requests */
-		
+		/* Start receiving requests */		
 		byte[] message;
-		int response;
 		String tempMessage;
 		
 		while (true){
-			try{
-				/******** Start of try block *****/
-				
+			try{				
 				int request = inFromClient.readInt();
 				
 				if (request == REQUESTSESSIONSTART){
-					/* First, receive an integer with the number of bytes sent containing username, then the username */
+					/* First, receive an integer with the number of bytes sent containing user name, then the user name */
 					message = readFromSocket(inFromClient);
 					username = new String(message, 0 , message.length);
 					
 					/* Second, receive an integer with the number of bytes sent containing directory name, then the directory name */
 					message = readFromSocket(inFromClient);
 					String directory = new String(message, 0 , message.length);
-					String requestedUserDirectory = Paths.get(username, directory).toString();
+					String requestedUserDirectory = Paths.get(System.getProperty("user.dir"), username, directory).toString();
 					
 					/* Third, confirm that the session is valid (directory not in use)*/
-					
 					if (lockDirectory(requestedUserDirectory) == false){
 						/* Send validation to client */					
 						outToClient.writeInt(FILEALREADYINUSE);
@@ -127,26 +119,33 @@ public class Caixote_Server_Thread extends Thread {
 						System.out.printf("Thread #%s: client request in not valid! Ending communications...%n", String.valueOf(thread_id));
 						break;
 					}
-					
-					outToClient.writeInt(REQUESTOK);
-					
-					/* Verify if User's home directory is on server file system */
-					boolean exists = Files.exists(Paths.get(username, requestedUserDirectory), LinkOption.NOFOLLOW_LINKS);
-					
-					/* if directory exists continue, else make that directory */
-					if (exists)
+									
+					/* Verify if user's home directory is on server file system */
+					boolean exists = Files.exists(Paths.get(requestedUserDirectory), LinkOption.NOFOLLOW_LINKS);
+					/* if directory exists continue */
+					if (exists){
+						/* Respond to client with success message */
+						outToClient.writeInt(REQUESTOK);
 						continue;
+					}
 					
-					new File(requestedUserDirectory).mkdir();
+					/* If file doesn't exist, make that directory (or directories till the last one) */
+					new File(requestedUserDirectory).mkdirs();
+					
+					/* Respond to client with success message */
+					outToClient.writeInt(REQUESTOK);
 				}
 				
 				else if (request == REQUESTFILEEXISTS){
+					/* First, receive an integer with the number of bytes sent containing file name, then the file name */
 					message = readFromSocket(inFromClient);
 					tempMessage = new String(message, 0 , message.length);
 					
-					/* Verify if file is on server file system */
-					Path dir = Paths.get(username, tempMessage);
-					boolean exists = Files.exists(dir, LinkOption.NOFOLLOW_LINKS);
+					/* Verify if file is on server file system (format the path -> absolute path in server <example> clientFile -> C:\....\clientUserName\clientFile) */
+					Path requestedUserFile = Paths.get(System.getProperty("user.dir"), username, tempMessage);
+					boolean exists = Files.exists(requestedUserFile, LinkOption.NOFOLLOW_LINKS);
+					
+					/* Respond to client with success/failure message (failure means file doesn't exist on server file system)*/
 					
 					if (exists == true)
 						outToClient.writeInt(REQUESTOK);
@@ -156,30 +155,43 @@ public class Caixote_Server_Thread extends Thread {
 				}
 				
 				else if (request == REQUESTMAKEDIR){
+					/* This request is only sent if this file does'nt exist on server file system */
+					/* First, receive an integer with the number of bytes sent containing directory name, then the directory name */
 					message = readFromSocket(inFromClient);
-					tempMessage = new String(message, 0 , message.length);					
-					String requestedUserDirectory = Paths.get(username, tempMessage).toString();
+					tempMessage = new String(message, 0 , message.length);
 					
-					/* Create file on server file system */
-					new File(requestedUserDirectory).mkdir();
+					/* Format the path -> absolute path in server <example> clientDir -> C:\....\clientUserName\clientDir */
+					Path requestedUserDirectory = Paths.get(System.getProperty("user.dir"), username, tempMessage);
+					/* Create directory on server file system */
+					new File(requestedUserDirectory.toString()).mkdirs();
 					
+					/* Respond with success message */
 					outToClient.writeInt(REQUESTOK);
 				}
 				
 				else if (request == REQUESTLISTDIR){
+					/* First, receive an integer with the number of bytes sent containing directory name, then the directory name */
 					message = readFromSocket(inFromClient);
-					tempMessage = new String(message, 0 , message.length);					
-					Path requestedUserDirectory = Paths.get(username, tempMessage);
+					tempMessage = new String(message, 0 , message.length);
 					
+					/* Format the path -> absolute path in server <example> clientDir -> C:\....\clientUserName\clientDir */
+					Path requestedUserDirectory = Paths.get(System.getProperty("user.dir"), username, tempMessage);
 					File file = new File(requestedUserDirectory.toString());
 					File[] fileList = file.listFiles();
 					
+					/* Notify client that server will be sending fileList.lenght file names */
 					outToClient.writeInt(fileList.length);
-					  
+					
+					Path userDir = Paths.get(System.getProperty("user.dir"), username);
+					
 					for (File f : fileList){
-						message = Paths.get(username).relativize(Paths.get(f.getPath())).toString().getBytes();
+						/* Format the absolute path in server -> relative path <example> C:\....\clientUserName\clientDir -> clientDir*/
+						message = userDir.relativize(Paths.get(f.getPath())).toString().getBytes();
+						
+						/* Send file name */
 						sendToSocket(outToClient, message);
 						
+						/* Send file type (directory / file) */
 						if (f.isDirectory()){
 							outToClient.writeInt(ISDIRECTORY);
 						}
@@ -190,11 +202,16 @@ public class Caixote_Server_Thread extends Thread {
 				}
 				
 				else if (request == REQUESTDIRECTORYLOCK){
-					/* Client requests access to directory. Read it and try to lock it */
+					/* This request is only sent if this directory exists on server directory system */
+					/* First, receive an integer with the number of bytes sent containing directory name, then the directory name */
 					message = readFromSocket(inFromClient);
 					tempMessage = new String(message, 0 , message.length);
 					
-					if (lockDirectory(Paths.get(username, tempMessage).toString()) == true){
+					/* Format the path -> absolute path in server <example> clientDir -> C:\....\clientUserName\clientDir */
+					Path requestedUserDirectory = Paths.get(System.getProperty("user.dir"), username, tempMessage);
+					
+					/* Attempt to lock the directory for personal use. If this file was already lock, this returns false */
+					if (lockDirectory(requestedUserDirectory.toString()) == true){
 						outToClient.writeInt(REQUESTOK);
 					}					
 					else
@@ -202,43 +219,52 @@ public class Caixote_Server_Thread extends Thread {
 				}
 				
 				else if (request == REQUESTFILETRANSFER){
-					/* Receive the name of the file */
+					/* This request is only sent if this file does'nt exist on server file system */
+					/* First, receive an integer with the number of bytes sent containing file name, then the file name */
 					message = readFromSocket(inFromClient);
 					tempMessage = new String(message, 0 , message.length);
-					String filename = Paths.get(username, tempMessage).toString();
+					
+					/* Format the path -> absolute path in server <example> clientFile -> C:\....\clientUserName\clientFile */
+					Path requestedUserFile = Paths.get(System.getProperty("user.dir"), username, tempMessage);
 					
 					/* Because file didn't exist, create it */
-					File file = new File(filename);
+					File file = new File(requestedUserFile.toString());
 					if (file.createNewFile() == false){
-						System.out.printf("Thread #%s: failure while trying to receive file <%s>!%n", String.valueOf(thread_id), filename);
+						/* On failure, notify client that file couldn't be created */
+						System.out.printf("Thread #%s: failure while trying to receive file <%s>!%n", String.valueOf(thread_id), requestedUserFile);
 						outToClient.writeInt(FILECOULDNOTBECREATED);
 						continue;
 					}
 					
+					/* On success, notify client that file could be created */					
 					outToClient.writeInt(REQUESTOK);
 					
 					/* Now receive file and update it's contents */
 					OutputStream fileStream;
 					try {
 						message = readFromSocket(inFromClient);
-						fileStream = new FileOutputStream(filename, false); 
+						fileStream = new FileOutputStream(requestedUserFile.toString(), false); 
 						fileStream.write(message);
 						fileStream.close();
 					} catch (IOException e1){
+						/* On failure, notify client that file couldn't be synchronized */		
 						outToClient.writeInt(FILETRANSFERFAILED);
 					}
 					
+					/* On success, notify client that file could be synchronized */		
 					outToClient.writeInt(REQUESTOK);
 				}
 				
 				else if (request == REQUESTFILEUPDATE){
-					/* Receive the name of the file */
+					/* First, receive an integer with the number of bytes sent containing file name, then the file name */
 					message = readFromSocket(inFromClient);
 					tempMessage = new String(message, 0 , message.length);
-					String filename = Paths.get(username, tempMessage).toString();
 					
-					/* Get the file in local file system*/
-					File myFile = new File(filename);
+					/* Format the path -> absolute path in server <example> clientFile -> C:\....\clientUserName\clientFile */
+					Path requestedUserFile = Paths.get(System.getProperty("user.dir"), username, tempMessage);
+					
+					/* Get the file in local file system */
+					File myFile = new File(requestedUserFile.toString());
 			        message = new byte[(int) myFile.length()];
 			         
 			        /* Create the byte array to send */
@@ -251,12 +277,18 @@ public class Caixote_Server_Thread extends Thread {
 				}
 				
 				else if (request == REQUESTTIMEFILELASTMODIFICATION){
+					/* First, receive an integer with the number of bytes sent containing file name, then the file name */
 					message = readFromSocket(inFromClient);
 					tempMessage = new String(message, 0 , message.length);
 					
-					File file = new File(Paths.get(username, tempMessage).toString());
+					/* Format the path -> absolute path in server <example> clientFile -> C:\....\clientUserName\clientFile */
+					Path requestedUserFile = Paths.get(System.getProperty("user.dir"), username, tempMessage);
+					
+					/* Get the file in local file system */
+					File file = new File(requestedUserFile.toString());
 					long lastModified = file.lastModified();
 					
+					/* Send it's last modified date over the socket */
 					outToClient.writeLong(lastModified);
 				}	
 				
@@ -318,7 +350,7 @@ public class Caixote_Server_Thread extends Thread {
 		outToClient.write(message);
 	}
 	
-	/* This method is synchronised so that only one thread can access it at a time */
+	/* This method is synchronized so that only one thread can access it at a time */
 	/* Lock directory so no one accesses it at the same time */
 	private synchronized boolean lockDirectory(String directory) {
 		if (thread_occupied_directories_list.contains(directory))
