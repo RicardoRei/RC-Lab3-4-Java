@@ -161,7 +161,7 @@ public class SyncFiles extends SimpleFileVisitor<Path> {
     	
 		/* for each file add it to childFiles / for each directory add it to childDirectories */
 		for (File f : fileList){
-			String filepath = Paths.get(f.getPath()).toString();
+			String filepath = Paths.get(f.getPath()).toString();			
 			
 			if (f.isDirectory()){
 				childDirectories.add(filepath);
@@ -190,7 +190,7 @@ public class SyncFiles extends SimpleFileVisitor<Path> {
     	for (int i = 0; i < fileCount; i++){
     		message = readFromSocket(inFromServer);
     		int type = inFromServer.readInt();
-    		    		
+    		
     		if (type == ISDIRECTORY){
     			tempMessage = new String(message, 0 , message.length);
     			if (childDirectories.contains(tempMessage) == false)
@@ -199,7 +199,7 @@ public class SyncFiles extends SimpleFileVisitor<Path> {
     		
     		else{
     			tempMessage = new String(message, 0 , message.length);
-    			if (missingChildFiles.contains(tempMessage) == false)
+    			if (childFiles.contains(tempMessage) == false)
     				missingChildFiles.add(tempMessage);
     		}
     	}
@@ -219,10 +219,10 @@ public class SyncFiles extends SimpleFileVisitor<Path> {
     		newDir.mkdirs();
     		
 			/* Synchronize files between server and client */
-    		System.out.println("Synchronising directory <" + s + ">...");
 			Path newStartingDir = Paths.get(startingDirectory.toString(), s);
 			SyncFiles fileVisitor = new SyncFiles(outToServer, inFromServer, newStartingDir);
 			Files.walkFileTree(Paths.get(s), fileVisitor);
+			System.out.println("Directory <" + s + "> successfully synchronised!");
     	}
 
     	System.out.println("Directory <" + dir + "> successfully synchronised!");
