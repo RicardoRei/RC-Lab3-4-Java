@@ -5,15 +5,19 @@ Projecto desenvolvido no âmbito da disciplina Redes de Computadores, de 3º ano
 
 Como correr o projecto:
 
-- Compilar as classes
+- Compilar as classes:
+	"javac Caixote_Server_Thread"
+	"javac Caixote_Server"
+	"javac SyncFiles"
+	"javac Caixote_Client"
 
-- Num terminal lançar o servidor com o comando:
+- Num terminal lançar primeiro o servidor com o comando:
 	"java Caixote_Server <port>"
 
 	Onde:
 	<port> é a porta em que o servidor vai ficar à escuta de clientes. Recomenda-se usar a porta nrº 40.
 
-- Num outro terminal lançar o cliente com o comando:
+- Depois, num outro terminal lançar o cliente com o comando:
 	"java Caixote_client <hostname> <port> <username> <directoria>"
 
 	Onde:

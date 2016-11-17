@@ -27,7 +27,7 @@ public class Caixote_Server {
 		/* Start by getting launch values*/
 		int port = Integer.parseInt(argv[0]);
 	
-		System.out.printf("Creating Server Welcome Socket in port %d...%n", port);
+		System.out.printf("Creating server welcome socket in port %d...%n", port);
 		
 		/* Create server's welcome socket to wait for clients' requests */
 		ServerSocket welcomeSocket = null;

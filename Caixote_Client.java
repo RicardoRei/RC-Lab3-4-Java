@@ -1,9 +1,11 @@
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -139,13 +141,21 @@ class Caixote_Client{
 				closeSocket(clientSocket);
 				System.out.println("Ending " + Caixote_Client.class.getSimpleName() + ". Bye!");
 				return;
-			}			
+			}
+			
+			Path startingDir = Paths.get(System.getProperty("user.dir"), directory).normalize();
+			
+			/* Verify if directory exists client's file system */
+			boolean exists = Files.exists(Paths.get(startingDir.toString()), LinkOption.NOFOLLOW_LINKS);
+			/* If file doesn't exist, make that directory (and directories till the last one) */
+			if (!exists){
+				new File(startingDir.toString()).mkdirs();	
+			}
 			
 			/* if clearance was given, start synchronizing */
 			System.out.println("Clearance was given! Starting synchronisation...");
 		
-			/* Synchronize files between server and client */
-			Path startingDir = Paths.get(System.getProperty("user.dir"), directory).normalize();
+			/* Synchronize files between server and client */			
 			SyncFiles fileVisitor = new SyncFiles(outToServer, inFromServer, startingDir);
 			Path directoryPath = Paths.get(directory);
 			Files.walkFileTree(directoryPath, fileVisitor);

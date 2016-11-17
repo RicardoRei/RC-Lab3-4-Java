@@ -65,7 +65,7 @@ public class Caixote_Server_Thread extends Thread {
 	/* Method used to get the thread running */
 	public void run(){
 		/* Welcome user */
-		System.out.printf("Thread #%s: thread is now running!%n", String.valueOf(thread_id));
+		System.out.printf("Thread #%s: Thread is now running!%n", String.valueOf(thread_id));
 		
 		/* Create output stream to server */				
 		DataOutputStream outToClient = null;
@@ -116,7 +116,7 @@ public class Caixote_Server_Thread extends Thread {
 						/* Send validation to client */					
 						outToClient.writeInt(FILEALREADYINUSE);
 						/* Session is invalid, end communications */				
-						System.out.printf("Thread #%s: client request in not valid! Ending communications...%n", String.valueOf(thread_id));
+						System.out.printf("Thread #%s: Client request in not valid! Ending communications...%n", String.valueOf(thread_id));
 						break;
 					}
 									
@@ -129,7 +129,7 @@ public class Caixote_Server_Thread extends Thread {
 						continue;
 					}
 					
-					/* If file doesn't exist, make that directory (or directories till the last one) */
+					/* If file doesn't exist, make that directory (and directories till the last one) */
 					new File(requestedUserDirectory).mkdirs();
 					
 					/* Respond to client with success message */
@@ -231,7 +231,7 @@ public class Caixote_Server_Thread extends Thread {
 					File file = new File(requestedUserFile.toString());
 					if (file.createNewFile() == false){
 						/* On failure, notify client that file couldn't be created */
-						System.out.printf("Thread #%s: failure while trying to receive file <%s>!%n", String.valueOf(thread_id), requestedUserFile);
+						System.out.printf("Thread #%s: Failure while trying to receive file <%s>!%n", String.valueOf(thread_id), requestedUserFile);
 						outToClient.writeInt(FILECOULDNOTBECREATED);
 						continue;
 					}
@@ -293,12 +293,12 @@ public class Caixote_Server_Thread extends Thread {
 				}	
 				
 				else if (request == REQUESTENDOFSYNC){
-					System.out.printf("Thread #%s: client requested end of synchronisation!%n", String.valueOf(thread_id));
+					System.out.printf("Thread #%s: Client requested end of synchronisation!%n", String.valueOf(thread_id));
 					break;
 				}
 				
 				else{
-					System.out.printf("Thread #%s: client request in not on protocol list! Ending communications...%n", String.valueOf(thread_id));
+					System.out.printf("Thread #%s: Client request in not on protocol list! Ending communications...%n", String.valueOf(thread_id));
 					break;
 				}
 				
@@ -312,11 +312,11 @@ public class Caixote_Server_Thread extends Thread {
 			}
 		}
 		
-		System.out.printf("Thread #%s: closing socket...%n", String.valueOf(thread_id));
+		System.out.printf("Thread #%s: Closing socket...%n", String.valueOf(thread_id));
 		
 		/* End of sync, close socket */				
 		closeSocket(connectionSocket);
-		System.out.printf("Thread #%s: Terminating %s. Bye!%n", String.valueOf(thread_id), Caixote_Server.class.getSimpleName());
+		System.out.printf("Thread #%s: Terminating %s. Bye!%n", String.valueOf(thread_id), Caixote_Server_Thread.class.getSimpleName());
 	}
 	
 	/*********************** End of Thread "Main"  *********************/
